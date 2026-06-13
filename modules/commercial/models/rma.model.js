@@ -55,8 +55,20 @@ const rmaSchema = new mongoose.Schema(
     },
     status: {
       type: String,
-      enum: ["OPEN", "RECEIVED", "RESTOCKED", "DISPOSED", "CLOSED", "CANCELLED"],
+      enum: ["PENDING", "OPEN", "RECEIVED", "RESTOCKED", "DISPOSED", "CLOSED", "CANCELLED", "REJECTED"],
       default: "OPEN",
+    },
+    // Online Sales sets this when authorizing / rejecting an RMA via the return flow
+    rmaCase: {
+      type: String,
+      enum: ["", "AUTHORIZED", "NOT_AUTHORIZED"],
+      default: "",
+    },
+    // Reference to the auto-generated RMA authorization PDF stored in OnlineSalesDocument
+    rmaDocumentRef: {
+      type: mongoose.Schema.Types.ObjectId,
+      ref: "OnlineSalesDocument",
+      default: null,
     },
     resolution: {
       type: String,

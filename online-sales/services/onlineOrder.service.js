@@ -5,7 +5,6 @@ const Campaign          = require("../../models/Campaign");
 const Customer          = require("../../modules/commercial/models/customer.model");
 const salesOrderService = require("../../modules/commercial/services/sales-order.service");
 const stockMovement     = require("../../modules/stock/services/stock-movement.service");
-const financeService    = require("../../modules/finance/services/finance.service");
 
 // ─── Helpers ──────────────────────────────────────────────────────────────────
 
@@ -155,8 +154,8 @@ async function restockForReturn(order, returnDoc) {
 // ─── Finance helpers ──────────────────────────────────────────────────────────
 
 /**
- * Write a REVENUE_RECOGNIZED finance entry when an online order is completed.
- * Uses sourceModule "COMMERCIAL" (only allowed value) with sourceType "ONLINE_ORDER_COMPLETED".
+ * Record a finance entry when an online order is completed.
+ * Uses entryType "MANUAL_ENTRY" (valid enum) with direction "INFLOW".
  */
 async function recordRevenueForOrder(order) {
   try {
@@ -165,7 +164,7 @@ async function recordRevenueForOrder(order) {
       { sourceType: "ONLINE_ORDER_COMPLETED", sourceId: String(order._id) },
       {
         $setOnInsert: {
-          entryType:        "REVENUE_RECOGNIZED",
+          entryType:        "MANUAL_ENTRY",
           direction:        "INFLOW",
           sourceModule:     "COMMERCIAL",
           sourceType:       "ONLINE_ORDER_COMPLETED",
@@ -194,7 +193,8 @@ async function recordRevenueForOrder(order) {
 }
 
 /**
- * Write an OUTFLOW entry when an online return is refunded.
+ * Record an outflow finance entry when an online return is refunded.
+ * Uses entryType "MANUAL_ENTRY" (valid enum) with direction "OUTFLOW".
  */
 async function recordRefundForReturn(order, returnDoc) {
   try {
@@ -203,7 +203,7 @@ async function recordRefundForReturn(order, returnDoc) {
       { sourceType: "ONLINE_RETURN_REFUNDED", sourceId: String(returnDoc._id) },
       {
         $setOnInsert: {
-          entryType:        "REVENUE_RECOGNIZED",   // closest existing type for a reversal
+          entryType:        "MANUAL_ENTRY",
           direction:        "OUTFLOW",
           sourceModule:     "COMMERCIAL",
           sourceType:       "ONLINE_RETURN_REFUNDED",
@@ -299,7 +299,7 @@ const onlineOrderService = {
     let order = await OnlineOrder.findById(id)
       .populate("promotionId", "name code discount type")
       .populate("campaignId",  "name channel status")
-      .populate("customerId",  "name email phone company")
+      .populate("customerId",  "name email phone")
       .lean();
     if (!order) return null;
     // Sync tracking from Commercial on each detail fetch

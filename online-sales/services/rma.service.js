@@ -1,6 +1,7 @@
-const RMA = require("../models/rma.model");
-const SalesOrder = require("../models/sales-order.model");
-const stockMovementService = require("../../stock/services/stock-movement.service");
+
+const RMA = require("../../modules/commercial/models/rma.model");
+const SalesOrder = require("../../modules/commercial/models/sales-order.model");
+const stockMovementService = require("../../modules/stock/services/stock-movement.service");
 
 async function generateRmaNo() {
   const latest = await RMA.findOne().sort({ createdAt: -1 }).select("rmaNo");
