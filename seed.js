@@ -23,7 +23,6 @@ const users = [
   { name: "Stock Manager",       email: "stock@erp.com",       password: "123456", role: "STOCK_MANAGER",      department: "Stock",        accountStatus: "approved" },
   { name: "Purchase Manager",    email: "purchase@erp.com",    password: "123456", role: "PURCHASE_MANAGER",   department: "Purchase",     accountStatus: "approved" },
   { name: "Depot Manager",       email: "depot@erp.com",       password: "123456", role: "DEPOT_MANAGER",      department: "None",         accountStatus: "approved" },
-  { name: "Warehouse Operator",  email: "warehouse@erp.com",   password: "123456", role: "WAREHOUSE_OPERATOR", department: "None",         accountStatus: "approved" },
 ];
 
 // ─── EMM Hardware — Équerres de Chaise (prices × 100) ────────────────────────

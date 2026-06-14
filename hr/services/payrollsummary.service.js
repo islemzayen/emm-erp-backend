@@ -19,13 +19,25 @@ function isExcludedByPayCycle(emp, month) {
   return joinDate.getTime() === lastDay.getTime();
 }
 
+// ── Sunday check ──────────────────────────────────────────────────────────────
+// Sunday (day 0) is the default weekend — absences on Sundays are not counted.
+function isSunday(dateStr) {
+  const d = new Date(dateStr);
+  return d.getDay() === 0;
+}
+
 // ── CNSS constants (Tunisian Labour Law) ─────────────────────────────────────
 const CNSS_EMPLOYEE_RATE = 0.0967;  // 9.67%  deducted from brut (employee's share)
 const CNSS_EMPLOYER_RATE = 0.2000;  // 20.00% paid by employer on top of brut
 const CNSS_TOTAL_RATE    = 0.2967;  // 29.67% total
 
-// salary field = agreed NET (what employee expects in hand).
-// Brut is back-calculated: brut = net / (1 - 0.0967)
+// salary field = agreed monthly salary (base rate).
+// Hourly rate = salary / 26 / 8 = salary / 208.
+// Earned salary = hourly × actual hours worked.
+// Brut = earned / (1 - 9.67%) — grossed up from earned.
+// CNSS is calculated from brut.
+// IRPP = 0, CSS = 0 — not applied.
+// Net = earned - avances.
 
 function calcPayroll(emp, att, avances, month) {
   if (isExcludedByPayCycle(emp, month)) {
@@ -36,55 +48,66 @@ function calcPayroll(emp, att, avances, month) {
       brutMonthly: 0, effectiveBase: 0, overtimePay: 0, absenceDeduction: 0,
       absentDays: 0, grossSalary: 0,
       cnssEmployee: 0, cnssEmployer: 0, cnssTotal: 0,
+      irpp: 0, css: 0, imposable: 0,
       avanceDeductions: 0, netSalary: 0,
       note: "Joined on last day of month — excluded from this pay cycle",
     };
   }
 
   const agreedNet   = emp.salary || 0;
-  const brutMonthly = Math.round(agreedNet / (1 - CNSS_EMPLOYEE_RATE));
-  const hourly      = brutMonthly / 208;
-  const daily       = brutMonthly / 26;
+  // Hourly rate from the agreed salary (NOT from brut)
+  const hourly      = agreedNet / 208;
+  const daily       = agreedNet / 26;
 
   const hoursWorked    = att ? (att.totalHoursWorked || 0) : 0;
   const extraHours     = att ? (att.totalExtraHours  || 0) : 0;
   const absentDays     = att ? (att.absentDays       || 0) : 0;
 
-  const effectiveBase    = hoursWorked === 0 ? 0 : Math.round(hourly * hoursWorked);
+  // Earned salary = what the employee actually earned based on hours worked
+  const earnedSalary     = hoursWorked === 0 ? 0 : Math.round(hourly * hoursWorked);
   const overtimePay      = Math.round(hourly * extraHours);
   const absenceDeduction = Math.round(daily  * absentDays);
 
-  const grossSalary    = effectiveBase + overtimePay;
+  // Gross salary (brut) = earned salary grossed up by 9.67%
+  const grossSalary    = hoursWorked === 0 ? 0 : Math.round(earnedSalary / (1 - CNSS_EMPLOYEE_RATE));
 
-  // CNSS split
+  // CNSS from the grossed-up earned salary
   const cnssEmployee   = hoursWorked === 0 ? 0 : Math.round(grossSalary * CNSS_EMPLOYEE_RATE);
   const cnssEmployer   = hoursWorked === 0 ? 0 : Math.round(grossSalary * CNSS_EMPLOYER_RATE);
   const cnssTotal      = cnssEmployee + cnssEmployer;
+
+  // IRPP and CSS are NOT applied — always 0
+  const irpp = 0;
+  const css  = 0;
+  const imposable = 0;
 
   const avTotal = avances
     .filter(a => String(a.employeeId) === String(emp._id) &&
       (a.status === "Deducted" || a.status === "Approved" || a.status === "approved"))
     .reduce((s, a) => s + (a.amount || 0), 0);
 
-  // Net = agreed salary − avance only (CNSS is informational, not deducted)
-  const netSalary = agreedNet - avTotal;
+  // Net = earned salary − avances only (no IRPP, no CSS, CNSS is informational)
+  const netSalary = earnedSalary - avTotal;
 
   return {
     employeeId:       String(emp._id),
     employeeName:     emp.name,
     department:       emp.department,
     position:         emp.position || "",
-    agreedNet,           // salary as stored — the agreed take-home amount
-    brutMonthly,         // back-calculated monthly brut
-    effectiveBase,       // earned brut based on hours
+    agreedNet,           // salary as stored — the agreed monthly rate
+    brutMonthly: grossSalary, // brut = earned grossed up by 9.67%
+    effectiveBase: earnedSalary, // earned salary based on hours
     overtimePay,
     absenceDeduction,
     absentDays,
     hoursWorked,
-    grossSalary,
-    cnssEmployee,        // 9.67% — deducted from employee
-    cnssEmployer,        // 20.00% — company's cost
-    cnssTotal,           // 29.67%
+    grossSalary,         // = brut (earned + 9.67%)
+    cnssEmployee,        // 9.67% of brut
+    cnssEmployer,        // 20.00% of brut
+    cnssTotal,           // 29.67% of brut
+    irpp,                // always 0
+    css,                 // always 0
+    imposable,           // always 0
     avanceDeductions: avTotal,
     netSalary,
   };
@@ -100,6 +123,9 @@ async function getAttMap(month) {
       presentDays: 0, absentDays: 0, lateDays: 0,
       totalExtraHours: 0, totalHoursWorked: 0,
     };
+    // Sunday is the default weekend — skip absent records on Sundays
+    if (r.status === "Absent" && isSunday(r.date)) continue;
+
     if (r.status === "Present") map[id].presentDays++;
     if (r.status === "Absent")  map[id].absentDays++;
     if (r.status === "Late")    { map[id].lateDays++; map[id].presentDays++; }
@@ -134,6 +160,8 @@ exports.getPayrollSummary = async (month) => {
     totalCnssEmployee:     rows.reduce((s, r) => s + r.cnssEmployee,      0),
     totalCnssEmployer:     rows.reduce((s, r) => s + r.cnssEmployer,      0),
     totalCnssTotal:        rows.reduce((s, r) => s + r.cnssTotal,         0),
+    totalIrpp:             0,
+    totalCss:              0,
     totalAvances:          rows.reduce((s, r) => s + r.avanceDeductions,  0),
     totalNetSalary:        rows.reduce((s, r) => s + r.netSalary,         0),
     employeeCount:         rows.length,

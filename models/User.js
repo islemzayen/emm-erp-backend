@@ -21,7 +21,7 @@ const userSchema = new mongoose.Schema(
         "PRODUCTION_MANAGER",
         "MAINTENANCE_MANAGER",
         "DEPOT_MANAGER",
-        "WAREHOUSE_OPERATOR",
+  
       ],
       default: "EMPLOYEE",
     },
