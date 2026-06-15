@@ -13,7 +13,7 @@ const systemNotificationSchema = new mongoose.Schema({
   type: {
     type: String,
     required: true,
-    enum: ['ACCOUNT_APPROVED', 'ACCOUNT_REJECTED', 'ACCOUNT_PENDING'],
+    enum: ['ACCOUNT_APPROVED', 'ACCOUNT_REJECTED', 'ACCOUNT_PENDING', 'PAYROLL_READY'],
   },
   message:    { type: String, required: true },
   targetId:   { type: String },   // employee _id

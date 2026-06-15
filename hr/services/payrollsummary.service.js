@@ -167,5 +167,36 @@ exports.getPayrollSummary = async (month) => {
     employeeCount:         rows.length,
   };
 
+  // Notify Finance Manager (once per month, non-blocking)
+  notifyFinance(month, totals).catch(() => {});
+
   return { month, totals, employees: rows };
 };
+
+// ── Auto-notify Finance ───────────────────────────────────────────────────────
+// After computing a payroll summary with at least one paid employee,
+// send a one-time notification to the FINANCE_MANAGER so they know the
+// payroll is ready and how much CNSS the company owes.
+async function notifyFinance(month, totals) {
+  if (totals.totalNetSalary <= 0) return; // nobody worked — nothing to pay
+  try {
+    const SystemNotification = require("../../models/SystemNotification");
+    const existing = await SystemNotification.findOne({
+      recipientRole: "FINANCE_MANAGER",
+      type: "PAYROLL_READY",
+      targetId: month,
+    });
+    if (existing) return; // already notified for this month
+
+    await SystemNotification.create({
+      recipientRole: "FINANCE_MANAGER",
+      type: "PAYROLL_READY",
+      message: `Payroll for ${month} is ready — ${totals.totalNetSalary.toLocaleString()} TND to disburse, ${totals.totalCnssTotal.toLocaleString()} TND CNSS to pay (${totals.employeeCount} employees).`,
+      targetId: month,
+      targetName: `Payroll ${month}`,
+      actorName: "HR Payroll System",
+    });
+  } catch (err) {
+    console.error("[HR] Failed to notify Finance:", err.message);
+  }
+}

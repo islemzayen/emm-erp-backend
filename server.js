@@ -5,7 +5,7 @@ const dotenv  = require("dotenv");
 const deptRoutes             = require("./hr/routes/department.routes");
 const cyclicOrderService     = require("./modules/production/services/cyclic-order.service");
 const { autoLogHook }        = require("./utils/audit.util");
-
+const { startPayrollCron } = require("./hr/payrollCron");
 dotenv.config();
 
 const fastify = Fastify({
@@ -184,4 +184,5 @@ fastify.listen({ port: PORT, host: "0.0.0.0" }, (err) => {
   setInterval(() => {
     cyclicOrderService.processDueOrders().catch(e => fastify.log.error(e));
   }, 60 * 1000);
+   startPayrollCron();
 });
