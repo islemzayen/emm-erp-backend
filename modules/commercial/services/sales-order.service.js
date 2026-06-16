@@ -553,19 +553,25 @@ exports.createOrder = async ({
   if (!resolvedName) throw Object.assign(new Error("Customer is required"), { statusCode: 400 });
 
   // Validate and auto-fill unit prices from product catalogue
+  const TAX_MULT = 1 + 19 / 100 + 1 / 100; // 1.20 — matches default TVA 19% + FODEC 1%
   const resolvedLines = await Promise.all(
     lines.map(async (line) => {
       const product = await StockProduct.findById(line.productId).select("salePrice name");
       if (!product) throw Object.assign(new Error(`Product ${line.productId} not found`), { statusCode: 404 });
-      const catalogPrice = product.salePrice || 0;
-      const unitPrice = line.unitPrice != null ? Number(line.unitPrice) : catalogPrice;
-      if (catalogPrice > 0 && unitPrice < catalogPrice * 0.5) {
+      const catalogPriceHt = product.salePrice || 0;
+      const inputPrice = line.unitPrice != null ? Number(line.unitPrice) : catalogPriceHt;
+      // Convert entered price to HT equivalent for the 50% check
+      const inputPriceHt = pricingMode === "TTC_BASED" ? inputPrice / TAX_MULT : inputPrice;
+      if (catalogPriceHt > 0 && inputPriceHt < catalogPriceHt * 0.5) {
         throw Object.assign(
-          new Error(`Unit price for "${product.name}" (${unitPrice}) is below 50% of catalogue price (${catalogPrice}). Override not allowed.`),
+          new Error(
+            `Prix unitaire pour "${product.name}" trop bas. ` +
+            `Le prix HT calculé (${inputPriceHt.toFixed(3)}) est inférieur à 50% du prix catalogue (${catalogPriceHt}).`
+          ),
           { statusCode: 400 }
         );
       }
-      return { ...line, unitPrice: unitPrice || catalogPrice };
+      return { ...line, unitPrice: inputPrice || catalogPriceHt };
     })
   );
 

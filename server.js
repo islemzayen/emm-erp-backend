@@ -9,13 +9,11 @@ const { startPayrollCron } = require("./hr/payrollCron");
 dotenv.config();
 
 const fastify = Fastify({
-  bodyLimit: 20 * 1024 * 1024, // 20 MB — needed for base64-encoded file uploads
-  logger: {
-    transport: {
-      target: "pino-pretty",
-      options: { colorize: true },
-    },
-  },
+  bodyLimit: 20 * 1024 * 1024,
+  logger: process.env.NODE_ENV !== "production"
+    ? { transport: { target: "pino-pretty", options: { colorize: true } } }
+    : true,
+
 });
 
 // ── Plugins ────────────────────────────────────────────────
@@ -127,7 +125,7 @@ fastify.register(require("./modules/purchase/routes/purchase-product-category.ro
 // ── Finance ────────────────────────────────────────────────
 fastify.register(require("./modules/finance/routes/finance.routes"),          { prefix: "/api/finance"           });
 fastify.register(require("./modules/finance/routes/finance-document.routes"), { prefix: "/api/finance/documents" });
-
+fastify.register(require("./modules/finance/routes/emprunt.routes"), { prefix: "/api/finance/emprunts" });
 // ── Production ─────────────────────────────────────────────
 fastify.register(require("./modules/production/routes/work-center.routes"),      { prefix: "/api/production/work-centers"  });
 fastify.register(require("./modules/production/routes/production-order.routes"), { prefix: "/api/production/orders"        });
