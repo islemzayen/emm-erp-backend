@@ -82,11 +82,30 @@ async function deleteEvent(id) {
 }
 
 async function requestExtraBudget(id, note) {
-  return MarketingEvent.findByIdAndUpdate(
+  const event = await MarketingEvent.findByIdAndUpdate(
     id,
     { budgetRequestStatus: "requested", budgetRequestNote: note || "" },
     { new: true }
   );
+
+  // Notify Finance Manager about the extra budget request
+  if (event) {
+    try {
+      const SystemNotification = require("../../models/SystemNotification");
+      await SystemNotification.create({
+        recipientRole: "FINANCE_MANAGER",
+        type: "BUDGET_EXTRA_REQUEST",
+        message: `Marketing requests extra budget for event "${event.title || "Untitled"}" (${event.monthKey}) — ${event.budget || 0} TND. ${note ? "Note: " + note : ""}`,
+        targetId: String(event._id),
+        targetName: event.title || "Marketing Event",
+        actorName: "Marketing Department",
+      });
+    } catch (err) {
+      console.error("[Marketing] Budget notification failed:", err.message);
+    }
+  }
+
+  return event;
 }
 
 async function transferBudget(year, fromMonth, toMonth, amount) {
@@ -114,8 +133,56 @@ async function syncSpent(monthKey) {
   );
 }
 
+async function approveBudgetRequest(id, approverName) {
+  const event = await MarketingEvent.findByIdAndUpdate(
+    id,
+    { budgetRequestStatus: "approved" },
+    { new: true }
+  );
+  if (event) {
+    try {
+      const SystemNotification = require("../../models/SystemNotification");
+      await SystemNotification.create({
+        recipientRole: "MARKETING_MANAGER",
+        type: "BUDGET_APPROVED",
+        message: `Extra budget for event "${event.title || "Untitled"}" (${event.monthKey}) — ${event.budget || 0} TND has been approved by ${approverName}.`,
+        targetId: String(event._id),
+        targetName: event.title || "Marketing Event",
+        actorName: approverName,
+      });
+    } catch (err) {
+      console.error("[Marketing] Budget approval notification failed:", err.message);
+    }
+  }
+  return event;
+}
+
+async function declineBudgetRequest(id, declinedByName, reason = "") {
+  const event = await MarketingEvent.findByIdAndUpdate(
+    id,
+    { budgetRequestStatus: "declined" },
+    { new: true }
+  );
+  if (event) {
+    try {
+      const SystemNotification = require("../../models/SystemNotification");
+      await SystemNotification.create({
+        recipientRole: "MARKETING_MANAGER",
+        type: "BUDGET_DECLINED",
+        message: `Extra budget for event "${event.title || "Untitled"}" (${event.monthKey}) has been declined by ${declinedByName}.${reason ? " Reason: " + reason : ""}`,
+        targetId: String(event._id),
+        targetName: event.title || "Marketing Event",
+        actorName: declinedByName,
+      });
+    } catch (err) {
+      console.error("[Marketing] Budget decline notification failed:", err.message);
+    }
+  }
+  return event;
+}
+
 module.exports = {
   getBudget, setAnnualBudget, updateMonthlyAllocations,
   getEvents, createEvent, updateEvent, deleteEvent,
-  requestExtraBudget, transferBudget,
+  requestExtraBudget, approveBudgetRequest, declineBudgetRequest, transferBudget,
 };

@@ -9,7 +9,7 @@ function isLastDayOfMonth() {
   const today = new Date();
   const tomorrow = new Date(today);
   tomorrow.setDate(tomorrow.getDate() + 1);
-  return true;
+  return tomorrow.getMonth() !== today.getMonth();
 }
 
 function getCurrentMonth() {

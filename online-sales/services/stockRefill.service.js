@@ -3,6 +3,16 @@ const StockRefillRequest = require("../../models/StockRefillRequest");
 const OnlineProduct      = require("../../models/OnlineProduct");
 const StockItem          = require("../../modules/stock/models/stock-item.model");
 
+// ── Notify helper ──────────────────────────────────────────────────────────
+async function notify(recipientRole, type, message, targetId, targetName, actorName) {
+  try {
+    const SystemNotification = require("../../models/SystemNotification");
+    await SystemNotification.create({ recipientRole, type, message, targetId, targetName, actorName });
+  } catch (err) {
+    console.error("[Refill] Notification failed:", err.message);
+  }
+}
+
 // ── Helper: get live warehouse stock ─────────────────────────────────────────
 async function getLiveStock(stockProductId) {
   const item = await StockItem.findOne({ productId: stockProductId }).lean();
@@ -50,7 +60,20 @@ const stockRefillService = {
     }
 
     const req = new StockRefillRequest({ lines, priority, notes, requestedBy });
-    return req.save();
+    const saved = await req.save();
+
+    // Notify Stock Manager that a refill request needs attention
+    const itemSummary = lines.map(l => `${l.productName} x${l.requestedQty}`).join(", ");
+    await notify(
+      "STOCK_MANAGER",
+      "REFILL_REQUESTED",
+      `Stock refill requested (${saved.requestNo}) — ${itemSummary}. Priority: ${priority || "NORMAL"}.`,
+      String(saved._id),
+      saved.requestNo,
+      requestedBy || "Online Sales"
+    );
+
+    return saved;
   },
 
   // ── LIST ───────────────────────────────────────────────────────────────────
@@ -122,7 +145,30 @@ const stockRefillService = {
     if (adminNotes) req.adminNotes = adminNotes;
     if (["approved", "rejected", "fulfilled"].includes(status)) req.resolvedAt = new Date();
 
-    return req.save();
+    const saved = await req.save();
+
+    // Notify Sales Manager of the decision
+    if (status === "approved") {
+      await notify(
+        "SALES_MANAGER",
+        "REFILL_APPROVED",
+        `Stock refill ${req.requestNo} has been approved. Items will be allocated once fulfilled.`,
+        String(req._id),
+        req.requestNo,
+        "Stock Department"
+      );
+    } else if (status === "rejected") {
+      await notify(
+        "SALES_MANAGER",
+        "REFILL_REJECTED",
+        `Stock refill ${req.requestNo} has been rejected.${adminNotes ? " Reason: " + adminNotes : ""}`,
+        String(req._id),
+        req.requestNo,
+        "Stock Department"
+      );
+    }
+
+    return saved;
   },
 
   // ── CHECK AVAILABILITY (exposed for frontend preview) ─────────────────────

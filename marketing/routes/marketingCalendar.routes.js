@@ -90,6 +90,22 @@ async function marketingCalendarRoutes(fastify) {
       return success(reply, event);
     } catch (e) { return error(reply, e.message, e.statusCode || 500); }
   });
+
+  // PATCH /api/marketing/events/:id/approve-budget  (Finance approves extra budget)
+  fastify.patch("/events/:id/approve-budget", { preHandler: [protect, requireRole("FINANCE_MANAGER", "ADMIN")] }, async (req, reply) => {
+    try {
+      const event = await svc.approveBudgetRequest(req.params.id, req.user.name);
+      return success(reply, event);
+    } catch (e) { return error(reply, e.message, e.statusCode || 500); }
+  });
+
+  // PATCH /api/marketing/events/:id/decline-budget  (Finance declines extra budget)
+  fastify.patch("/events/:id/decline-budget", { preHandler: [protect, requireRole("FINANCE_MANAGER", "ADMIN")] }, async (req, reply) => {
+    try {
+      const event = await svc.declineBudgetRequest(req.params.id, req.user.name, req.body?.reason || "");
+      return success(reply, event);
+    } catch (e) { return error(reply, e.message, e.statusCode || 500); }
+  });
 }
 
 module.exports = marketingCalendarRoutes;
