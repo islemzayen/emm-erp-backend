@@ -20,9 +20,12 @@ const fastify = Fastify({
 fastify.register(require("@fastify/helmet"));
 fastify.register(require("@fastify/cors"), {
   origin: (origin, cb) => {
-    const isLocalDevOrigin =
-      !origin || /^http:\/\/(localhost|127\.0\.0\.1):\d+$/.test(origin);
-    if (isLocalDevOrigin) {
+    const isAllowed =
+      !origin ||
+      /^http:\/\/(localhost|127\.0\.0\.1):\d+$/.test(origin) ||
+      /\.ngrok-free\.(dev|app)$/.test(origin) ||
+      /\.ngrok\.io$/.test(origin);
+    if (isAllowed) {
       cb(null, true);
     } else {
       cb(new Error("Not allowed by CORS"), false);
