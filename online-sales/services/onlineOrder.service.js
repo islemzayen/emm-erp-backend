@@ -436,6 +436,14 @@ const onlineOrderService = {
 
   // ── DELETE ───────────────────────────────────────────────────────────────
   async remove(id) {
+    const order = await OnlineOrder.findById(id);
+    if (!order) throw Object.assign(new Error("Order not found"), { statusCode: 404 });
+    if (["processing", "completed"].includes(order.status)) {
+      throw Object.assign(
+        new Error("Cannot delete a processed order — cancel it first to reverse its Commercial and Stock effects."),
+        { statusCode: 400 }
+      );
+    }
     return OnlineOrder.findByIdAndDelete(id);
   },
 
